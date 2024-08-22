@@ -1,18 +1,45 @@
 services:
+  mqtt:
+    container_name: mqtt
+    image: hivemq/hivemq4
+    ports:
+      - 9180:8080
+      - 1883:1883
+    restart: always
+    networks:
+      v1:
+        ipv4_address: 172.30.0.5
+      external_network:
+
   fornecedor-v1:
     build:
       context: ./fornecedor-v1
       dockerfile: dockerfile
     restart: always
+    networks:
+      - v1
 
   fabrica-v1:
     build:
       context: ./fabrica-v1
       dockerfile: dockerfile
     restart: always
+    networks:
+      - v1
 
-  almoxarifado-v1:
+  almoxarifado-v1:online
     build:
       context: ./almoxarifado-v1
       dockerfile: dockerfile
     restart: always
+    networks:
+      - v1
+
+networks:
+  external_network:
+    external: true
+  v1:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24 
+    internal: true
