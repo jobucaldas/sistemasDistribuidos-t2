@@ -1,6 +1,12 @@
 # Sistemas Distribuidos T2
 Projeto 2 da disciplina de Sistemas Distribuídos na UFSCAR, semestre 2024/1
 
+## Grupo
+- Augusto Cesar do Amaral | RA: 
+- Caique Rocha Goncalves | RA: 
+- João Victor Bueno de Caldas | RA: 769657
+- Lucas Pereira Quadros | RA: 800981
+
 ## Objetivo
 Garantir que não ocorra ruptura na fabricação por falta de partes.
 
