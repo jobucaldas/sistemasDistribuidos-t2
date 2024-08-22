@@ -1,18 +1,18 @@
 services:
   fornecedor:
     build:
-      context: ./fornecedor
+      context: ./fornecedor-v1
       dockerfile: dockerfile
     restart: always
 
   fabrica:
     build:
-      context: ./fabrica
+      context: ./fabrica-v1
       dockerfile: dockerfile
     restart: always
 
   almoxarifado:
     build:
-      context: ./almoxarifado
+      context: ./almoxarifado-v1
       dockerfile: dockerfile
     restart: always
