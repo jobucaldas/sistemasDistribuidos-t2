@@ -1,0 +1,55 @@
+services:
+  mqtt:
+    container_name: mqtt
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    restart: always
+    volumes: 
+      - ./mqtt:/etc/mosquitto
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - sistemas_distribuidos
+
+  fornecedor:
+    build:
+      context: ./fornecedor-v1
+      dockerfile: dockerfile
+    restart: always
+    volumes:
+      - ./fornecedor-v1:/app
+    depends_on:
+      - mqtt
+    networks:
+      - sistemas_distribuidos
+
+  fabrica:
+    build:
+      context: ./fabrica-v1
+      dockerfile: dockerfile
+    restart: always
+    volumes:
+      - ./fabrica-v1:/app
+    depends_on:
+      - mqtt
+      - almoxarifado
+      - fornecedor
+    networks:
+      - sistemas_distribuidos
+
+  almoxarifado:
+    build:
+      context: ./almoxarifado-v1
+      dockerfile: dockerfile
+    restart: always
+    volumes:
+      - ./almoxarifado-v1:/app
+    depends_on:
+      - mqtt
+    networks:
+      - sistemas_distribuidos
+
+networks:
+  sistemas_distribuidos:
+    driver: bridge
