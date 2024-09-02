@@ -1,0 +1,71 @@
+services:
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    ports:
+      - 5672:5672    #amqp
+      - 15672:15672  #http
+    restart: always
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 10s
+      retries: 3
+    networks:
+      - rabbitsd
+
+  fornecedor:
+    build:
+      context: ./fornecedor
+      dockerfile: dockerfile
+    restart: always
+    volumes:
+      - ./fornecedor:/app
+    depends_on:
+      rabbitmq:
+          condition: service_healthy
+    networks:
+      - rabbitsd
+
+  fabrica1:
+    build:
+      context: ./fabrica1
+      dockerfile: dockerfile
+    restart: always
+    volumes:
+      - ./fabrica1:/app
+    depends_on:
+      rabbitmq:
+          condition: service_healthy
+    networks:
+      - rabbitsd
+
+  fabrica2:
+    build:
+      context: ./fabrica2
+      dockerfile: dockerfile
+    restart: always
+    volumes:
+      - ./fabrica2:/app
+    depends_on:
+      rabbitmq:
+          condition: service_healthy
+    networks:
+      - rabbitsd
+
+  almoxarifado:
+    build:
+      context: ./almoxarifado
+      dockerfile: dockerfile
+    restart: always
+    volumes:
+      - ./almoxarifado:/app
+    depends_on:
+      rabbitmq:
+          condition: service_healthy
+    networks:
+      - rabbitsd
+
+networks:
+  rabbitsd:
+    driver: bridge
