@@ -7,6 +7,12 @@ Projeto 2 da disciplina de Sistemas Distribuídos na UFSCAR, semestre 2024/1
 - João Victor Bueno de Caldas | RA: 769657
 - Lucas Pereira Quadros | RA: 800981
 
+## Como executar
+Entre na versão desejada e execute
+```sh
+docker compose up
+```
+
 ## Objetivo
 Garantir que não ocorra ruptura na fabricação por falta de partes.
 
