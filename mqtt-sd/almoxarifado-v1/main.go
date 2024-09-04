@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
@@ -64,22 +65,17 @@ func main() {
 
 func almoxarifadoHandler(client mqtt.Client, msg mqtt.Message) {
 	fmt.Println("Recebendo Peça do Fornecedor")
+
+	parte := string(msg.Payload())
+	partesBrutas = append(partesBrutas, parte)
+
 	if len(partesBrutas) <= int(kanbamAmarelo) {
 		// Pedir mais peças ao fornecedor
 		token := client.Publish(fornecedor, 0, false, "")
 		token.Wait()
-
 	}
 
-	parte := string(msg.Payload())
-
 	// time.Sleep(time.Second)
-	partesBrutas = append(partesBrutas, parte)
-}
-
-func pedePartes(client mqtt.Client) {
-	token := client.Publish(fornecedor, 0, false, "")
-	token.Wait()
 }
 
 func pedidoFabrica1Handler(client mqtt.Client, msg mqtt.Message) {
@@ -88,19 +84,21 @@ func pedidoFabrica1Handler(client mqtt.Client, msg mqtt.Message) {
 	if len(partesBrutas) <= int(kanbamVermelho) {
 		fmt.Println("Pedindo mais peças ao fornecedor")
 
-		// Pedir mais partes ao fornecedor
-		for i := 0; i < int(kanbamAmarelo); i++ {
-			go pedePartes(client)
-		}
+		token := client.Publish(fornecedor, 0, false, "")
+		token.Wait()
+
+		time.Sleep(time.Second)
 	}
 
-	parte := partesBrutas[0]
-	partesBrutas = partesBrutas[1:]
+	if(len(partesBrutas) > 0){
+		fmt.Println(len(partesBrutas))
+		parte := partesBrutas[0]
+		partesBrutas = partesBrutas[1:]
 
-	fmt.Println("Enviando Peça para a Fábrica 1")
-	token := client.Publish(fabrica1envio, 0, false, parte)
-	token.Wait()
-
+		fmt.Println("Enviando Peça para a Fábrica 1")
+		token := client.Publish(fabrica1envio, 0, false, parte)
+		token.Wait()
+	}
 }
 
 func sub(client mqtt.Client) {

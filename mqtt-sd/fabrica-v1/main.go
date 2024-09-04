@@ -68,7 +68,7 @@ func fazerPedido(client mqtt.Client) {
 	token := client.Publish(almoxarifadoPedido, 0, false, "Fazendo Pedido")
 	token.Wait()
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Second/100)
 
 	if token.Error() != nil {
 		fmt.Printf("Erro ao fazer pedido: Tentando novamente...\n")
@@ -84,15 +84,12 @@ func fabricaProduto(client mqtt.Client, partesNecessarias int) {
 		for len(partes) < kanbamAmarelo {
 			fazerPedido(client)
 		}
-
-		// Aguarda chegar
-		time.Sleep(4 * time.Second)
 	}
 
 	// Fabricar o produto
 	fmt.Println("Fabricando o produto...")
 	partes = partes[partesNecessarias:]
-	time.Sleep(2 * time.Second) // Simulação de processamento
+	time.Sleep(time.Second) // Simulação de processamento
 	fmt.Println("Produto fabricado com sucesso!")
 
 	// Incrementar contador de produtos fabricados

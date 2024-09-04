@@ -53,22 +53,14 @@ func main() {
 func fornecedorHandler(client mqtt.Client, msg mqtt.Message) {
 	fmt.Println("Recebendo Pedido de Peça do Almoxarifado")
 
-	// Gerar e acumular peças do pacote
-	for i := 0; i < 10; i++ {
-		parte := fmt.Sprintf("Peça: %s", uuid.New().String())
-		partesBuffer = append(partesBuffer, parte)
-	}
+	// Gerar a parte do pedido
+	parte := fmt.Sprintf("Parte: %s", uuid.New().String())
 
-	// Enviar todas as peças acumuladas de uma vez
-	for _, parte := range partesBuffer {
-		token := client.Publish(almoxarifado, 0, false, parte)
-		token.Wait()
-		// fmt.Printf("Enviando %s\n", parte)
-		// time.Sleep(time.Second) // Simula o tempo de envio de cada produto
-	}
+	// Enviar parte
+	token := client.Publish(almoxarifado, 0, false, parte)
 
-	// Limpar o buffer após o envio
-	partesBuffer = []string{}
+	fmt.Println("Enviando Peça ao Almoxarifado")
+	token.Wait()
 }
 
 func sub(client mqtt.Client) {
