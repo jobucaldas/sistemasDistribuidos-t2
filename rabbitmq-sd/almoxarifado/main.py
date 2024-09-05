@@ -45,7 +45,22 @@ def sendPart():
     print(" [x] Enviando parte pra fabrica")
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
-part(queue='fornecedor_request')
+
+    channel.queue_declare(queue='fabrica1_send')
+
+    message = q.dequeue()
+
+    channel.basic_publish(exchange='', routing_key='fabrica1_send', body=message)
+    print(" [x] Parte {message} enviada")
+    connection.close()
+
+def requestPart():
+    print(" [x] Pedindo parte ao fornecedor")
+    connection = pika.BlockingConnection(
+    pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    channel.queue_declare(queue='fornecedor_request')
 
     message = "More parts please"
 
