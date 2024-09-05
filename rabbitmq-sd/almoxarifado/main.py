@@ -2,18 +2,33 @@
 import pika
 import sys
 
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-channel = connection.channel()
+def receiveParts():
+    def callback(ch, method, properties, body):
+        print(f" [x] {method.routing_key}:{body}")
 
-channel.queue_declare(queue='task_queue', durable=True)
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
 
-message = ' '.join(sys.argv[1:]) or "Almoxarifado!"
-channel.basic_publish(
-    exchange='',
-    routing_key='task_queue',
-    body=message,
-    properties=pika.BasicProperties(
-        delivery_mode=pika.DeliveryMode.Persistent
-    ))
-print(f" [x] Sent {message}")
-connection.close()
+    channel.exchange_declare(exchange='recebe__parte_fornecedor', exchange_type='topic')
+
+    result = channel.queue_declare('', exclusive=True)
+    queue_name = result.method.queue
+
+    binding_keys = sys.argv[1:]
+    if not binding_keys:
+        sys.stderr.write("Usage: %s [binding_key]...\n" % sys.argv[0])
+        sys.exit(1)
+
+    for binding_key in binding_keys:
+        channel.queue_bind(
+            exchange='recebe__parte_fornecedor', queue=queue_name, routing_key=binding_key)
+
+    print(' [*] Waiting for logs. To exit press CTRL+C')
+
+    channel.basic_consume(
+        queue=queue_name, on_message_callback=callback, auto_ack=True)
+
+    channel.start_consuming()
+
+

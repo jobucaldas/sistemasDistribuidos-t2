@@ -1,19 +1,45 @@
 #!/usr/bin/env python
 import pika
 import sys
+import threading
+import uuid
 
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-channel = connection.channel()
+def sendPart():
+    print(" [x] Enviando parte")
+    connection = pika.BlockingConnection(
+    pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
 
-channel.queue_declare(queue='task_queue', durable=True)
+    channel.queue_declare(queue='envio_parte_fornecedor')
 
-message = ' '.join(sys.argv[1:]) or "fornecedor!"
-channel.basic_publish(
-    exchange='',
-    routing_key='task_queue',
-    body=message,
-    properties=pika.BasicProperties(
-        delivery_mode=pika.DeliveryMode.Persistent
-    ))
-print(f" [x] Sent {message}")
-connection.close()
+    message = uuid.uuid4()
+
+    channel.basic_publish(exchange='', routing_key='recebe', body=message)
+    print(" [x] Parte " + message + " enviada")
+    connection.close()
+
+def main():
+    print(" [x] Começando fornecedor")
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    channel.queue_declare(queue='fornecedor_request')
+
+    def callback(ch, method, properties, body):
+        print(f" [x] Received request")
+        sendPart()
+
+    channel.basic_consume(queue='fornecedor_request', on_message_callback=callback, auto_ack=True)
+
+    channel.start_consuming()
+
+if __name__ == '__main__':
+    try:
+        print('Iniciando fornecedor')
+        main()
+    except KeyboardInterrupt:
+        print('Fornecedor interrupted')
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
