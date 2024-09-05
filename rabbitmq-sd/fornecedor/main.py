@@ -12,21 +12,21 @@ def sendPart():
 
     channel.queue_declare(queue='envio_parte_fornecedor')
 
-    message = uuid.uuid4()
+    message = str(uuid.uuid4())
 
-    channel.basic_publish(exchange='', routing_key='recebe', body=message)
+    channel.basic_publish(exchange='', routing_key='envio_parte_fornecedor', body=message)
     print(" [x] Parte " + message + " enviada")
     connection.close()
 
 def main():
-    print(" [x] Começando fornecedor")
+    print(" [x] Iniciando fornecedor")
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
     channel.queue_declare(queue='fornecedor_request')
 
     def callback(ch, method, properties, body):
-        print(f" [x] Received request")
+        print(f" [x] Recebido pedido")
         sendPart()
 
     channel.basic_consume(queue='fornecedor_request', on_message_callback=callback, auto_ack=True)
@@ -35,7 +35,6 @@ def main():
 
 if __name__ == '__main__':
     try:
-        print('Iniciando fornecedor')
         main()
     except KeyboardInterrupt:
         print('Fornecedor interrupted')
