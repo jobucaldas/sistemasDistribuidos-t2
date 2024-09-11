@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import os
+from time import sleep
 import pika
 import threading
 import sys
@@ -32,26 +34,30 @@ def handleReceivingParts():
     channel.queue_declare(queue='envio_parte_fornecedor')
 
     def callback(ch, method, properties, body):
-        print(f" [x] Recebida parte {q.size()}/{green}")
         q.enqueue(str(body))
-        if(q.size() < yellow):
+        print(f" [x] Recebida parte {q.size()}/{green}")
+        if q.size() < yellow:
             requestPart()
 
     channel.basic_consume(queue='envio_parte_fornecedor', on_message_callback=callback, auto_ack=True)
 
     channel.start_consuming()
 
-def sendPart():
-    print(" [x] Enviando parte pra fabrica")
+def sendPart(fabrica_queue):
+    if q.isEmpty():
+        print(" [x] Nenhuma parte disponível para envio")
+        return
+
+    print(f" [x] Enviando parte para {fabrica_queue}")
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
-    channel.queue_declare(queue='fabrica1_send')
+    channel.queue_declare(queue=fabrica_queue)
 
     message = q.dequeue()
 
-    channel.basic_publish(exchange='', routing_key='fabrica1_send', body=message)
-    print(" [x] Parte {message} enviada")
+    channel.basic_publish(exchange='', routing_key=fabrica_queue, body=message)
+    print(f" [x] Parte {message} enviada para {fabrica_queue}")
     connection.close()
 
 def requestPart():
@@ -73,16 +79,23 @@ def main():
     channel = connection.channel()
 
     channel.queue_declare(queue='fabrica1_request')
+    channel.queue_declare(queue='fabrica2_request')
 
     def callback(ch, method, properties, body):
-        print(f" [x] Received request")
+        print(f" [x] Pedido recebido de {method.routing_key}")
         if(q.size() < red):
             requestPart()
-            sleep(1000) # Tempo até o carregamento do fornecedor chegar
+            # sleep(1000)
 
-        sendPart()
+        if method.routing_key == 'fabrica1_request':
+            if not q.isEmpty():
+                sendPart('fabrica1_send')
+        elif method.routing_key == 'fabrica2_request':
+            if not q.isEmpty():
+                sendPart('fabrica2_send')
 
     channel.basic_consume(queue='fabrica1_request', on_message_callback=callback, auto_ack=True)
+    channel.basic_consume(queue='fabrica2_request', on_message_callback=callback, auto_ack=True)
 
     channel.start_consuming()
 
