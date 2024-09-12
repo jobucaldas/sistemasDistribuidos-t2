@@ -22,7 +22,7 @@ class Queue:
     def size(self):
         return len(self.items)
 
-totalDia = 0
+totalDia = 10000
 
 produtos = [Queue(), Queue(), Queue(), Queue(), Queue()]
 
@@ -45,40 +45,54 @@ def handleReceivingProducts():
         for i in range(5):
             producaoDia += produtos[i].size()
 
+        print(f"Produção do dia: {producaoDia}, total do dia: {totalDia}")
+
         if producaoDia >= totalDia:
-            sleep(2)
+            sleep(5)
             startNewDay()
 
     channel.basic_consume(queue='depositar', on_message_callback=callback, auto_ack=True)
 
     channel.start_consuming()
 
+def pedirFabrica2():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    channel.queue_declare(queue='pedido_fabrica2')
+
+    for i in range(5):
+        produtos[i] = Queue()
+
+    produtos1 = randrange(0,50)
+    produtos2 = randrange(0,50)
+    produtos3 = randrange(0,50)
+    produtos4 = randrange(0,50)
+    produtos5 = randrange(0,50)
+
+    global totalDia
+    totalDia = produtos1 + produtos2 + produtos3 + produtos4 + produtos5 + 48*5
+
+    channel.basic_publish(exchange='', routing_key='pedido_fabrica2', body=json.dumps([produtos1, produtos2, produtos3, produtos4, produtos5])) # Envio a quantidade extra que quero no dia para a fabrica2 saber o que produzir
+    connection.close()
+
 def startNewDay():
     # print(" [x] Recebendo parte do almoxarifado")
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
-    channel.queue_declare(queue='new_day')
-
-    for i in range(5):
-        produtos[i] = Queue()
-
-    produtos1 = randrange(5,35)
-    produtos2 = randrange(5,35)
-    produtos3 = randrange(5,35)
-    produtos4 = randrange(5,35)
-    produtos5 = randrange(5,35)
-
-    totalDia = produtos1 + produtos2 + produtos3 + produtos4 + produtos5 + 48*5
+    channel.queue_declare(queue='pedir_fabrica1')
 
     print(" [X] Starting New Day")
-    channel.basic_publish(exchange='', routing_key='new_day', body=json.dumps([produtos1, produtos2, produtos3, produtos4, produtos5])) # Envio a quantidade extra que quero no dia para a fabrica2 saber o que produzir
+    channel.basic_publish(exchange='', routing_key='pedir_fabrica1', body="")
+    pedirFabrica2()
     connection.close()
 
 def main():
     print(" [x] Começando deposito")
 
     threading.Thread(target=handleReceivingProducts).start()
+    sleep(5)
     startNewDay()
 
 if __name__ == '__main__':

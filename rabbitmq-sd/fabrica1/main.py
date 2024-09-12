@@ -54,16 +54,17 @@ def handleNewDay():
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
-    channel.queue_declare(queue='new_day')
+    channel.queue_declare(queue='pedir_fabrica1')
 
     def callback(ch, method, properties, body):
+        print(" [X] Começando dia na fabrica 1")
         # Reset all
         for i in range(5):
             linhasQueue[i] = Queue()
             itensProduzidos[i] = 0
 
-    channel.basic_consume(queue='new_day', on_message_callback=callback, auto_ack=True)
-
+    channel.basic_consume(queue='pedir_fabrica1', on_message_callback=callback, auto_ack=True)
+    print(" [X] Fabrica 1 aguardando")
     channel.start_consuming()
 
 def requestPart(fabrica, linha):
@@ -92,6 +93,7 @@ def depositar(produto, tipo):
 def linhaDeProducao(quantidadePartes, linha):
     while True:
         if(itensProduzidos[linha-1] < tamanhoProducao):
+            #print(f"{itensProduzidos[linha-1]} {linhasQueue[linha-1].size()<quantidadePartes} {quantidadePartes}")
             # Se faltam partes, pedimos para o almoxarifado
             if(linhasQueue[linha-1].size() < quantidadePartes):
                 requestPart(1, linha)
@@ -102,7 +104,7 @@ def linhaDeProducao(quantidadePartes, linha):
                 #print(f" [X] Fabricado item {itensProduzidos}/{tamanhoProducao}")
 
                 if(itensProduzidos[linha-1] >= tamanhoProducao):
-                    print(f" [X] Linha {linha} concluida!")
+                    print(f" [X] Linha {linha} da fabrica 1 concluida!")
 
 def main():
     print(" [x] Começando fabrica 1")
