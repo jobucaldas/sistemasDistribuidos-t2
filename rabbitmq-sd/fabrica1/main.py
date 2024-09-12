@@ -27,26 +27,21 @@ linhasQueue = [Queue(), Queue(), Queue(), Queue(), Queue()]
 itensProduzidos = [0, 0, 0, 0, 0]
 
 tamanhoProducao = 48
-produto1 = 43+20
-produto2 = 43+33
-produto3 = 43+31
-produto4 = 43+29
-produto5 = 43+24
+quantidadePartes = [43+20, 43+33, 43+31, 43+29, 43+24]
 
 def handleReceivingParts():
     # print(" [x] Recebendo parte do almoxarifado")
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
-    channel.queue_declare(queue='fabrica_send')
+    channel.queue_declare(queue='fabrica1_send')
 
     def callback(ch, method, properties, body):
         content = json.loads(body)
-        if(content["fabrica"] == 1):
-            # print(f" [x] Recebida parte {linhasQueue[content["linha"]-1].size()} da linha  {content["linha"]}")
-            linhasQueue[content["linha"]-1].enqueue(content["parte"])
+        # print(f" [x] Recebida parte {linhasQueue[content["linha"]-1].size()} da linha  {content["linha"]}")
+        linhasQueue[content["linha"]-1].enqueue(content["parte"])
 
-    channel.basic_consume(queue='fabrica_send', on_message_callback=callback, auto_ack=True)
+    channel.basic_consume(queue='fabrica1_send', on_message_callback=callback, auto_ack=True)
 
     channel.start_consuming()
 
@@ -60,7 +55,6 @@ def handleNewDay():
         print(" [X] Começando dia na fabrica 1")
         # Reset all
         for i in range(5):
-            linhasQueue[i] = Queue()
             itensProduzidos[i] = 0
 
     channel.basic_consume(queue='pedir_fabrica1', on_message_callback=callback, auto_ack=True)
@@ -90,21 +84,31 @@ def depositar(produto, tipo):
     channel.basic_publish(exchange='', routing_key='depositar', body=json.dumps(message))
     connection.close()
 
-def linhaDeProducao(quantidadePartes, linha):
+def linhaDeProducao(linha):
+    pedido = False
     while True:
         if(itensProduzidos[linha-1] < tamanhoProducao):
             #print(f"{itensProduzidos[linha-1]} {linhasQueue[linha-1].size()<quantidadePartes} {quantidadePartes}")
-            # Se faltam partes, pedimos para o almoxarifado
-            if(linhasQueue[linha-1].size() < quantidadePartes):
-                requestPart(1, linha)
-            # Senão só produzimos
-            else:
+            if not pedido:
+                # Pedimos para o almoxarifado
+                for i in range(quantidadePartes[linha-1]):
+                    requestPart(1, linha)
+
+            pedido = True
+
+            # Espero ter peças
+            if(linhasQueue[linha-1].size() >= quantidadePartes[linha-1]):
+                pedido = False
+                # Daí produzimos um produto unico
+                for i in range(quantidadePartes[linha-1]):
+                    linhasQueue[linha-1].dequeue()
+
                 itensProduzidos[linha-1] += 1
                 depositar(str(uuid.uuid4()), linha)
                 #print(f" [X] Fabricado item {itensProduzidos}/{tamanhoProducao}")
 
-                if(itensProduzidos[linha-1] >= tamanhoProducao):
-                    print(f" [X] Linha {linha} da fabrica 1 concluida!")
+            if(itensProduzidos[linha-1] >= tamanhoProducao):
+                print(f" [x] Linha {linha} da fabrica 1 concluida!")
 
 def main():
     print(" [x] Começando fabrica 1")
@@ -112,11 +116,11 @@ def main():
     threading.Thread(target=handleReceivingParts).start()
     threading.Thread(target=handleNewDay).start()
 
-    threading.Thread(target=linhaDeProducao, args=[produto1, 1]).start()
-    threading.Thread(target=linhaDeProducao, args=[produto2, 2]).start()
-    threading.Thread(target=linhaDeProducao, args=[produto3, 3]).start()
-    threading.Thread(target=linhaDeProducao, args=[produto4, 4]).start()
-    threading.Thread(target=linhaDeProducao, args=[produto5, 5]).start()
+    threading.Thread(target=linhaDeProducao, args=[1]).start()
+    threading.Thread(target=linhaDeProducao, args=[2]).start()
+    threading.Thread(target=linhaDeProducao, args=[3]).start()
+    threading.Thread(target=linhaDeProducao, args=[4]).start()
+    threading.Thread(target=linhaDeProducao, args=[5]).start()
 
 if __name__ == '__main__':
     try:

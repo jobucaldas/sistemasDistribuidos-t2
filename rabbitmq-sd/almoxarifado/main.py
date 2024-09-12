@@ -24,18 +24,19 @@ class Queue:
 q = Queue()
 green = 10000
 yellow = green*0.6+1
-red = green*0.25+1
+red = green*0.1+1
 
 def handleReceivingParts():
-    #print(" [x] Recebendo parte do fornecedor")
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
     channel.queue_declare(queue='envio_parte_fornecedor')
 
     def callback(ch, method, properties, body):
-        #print(f" [x] Recebida parte {q.size()}/{green}")
+        global q
+        # print(f" [x] Recebida parte {q.size()}/{green}")
         q.enqueue(str(body))
+
         if(q.size() < yellow):
             requestPart()
 
@@ -43,22 +44,31 @@ def handleReceivingParts():
 
     channel.start_consuming()
 
-def sendPart(fabrica, linha):
+def sendPart(fabrica, linha):    
+    key = ""
+    if fabrica == 1:
+        key = "fabrica1_send"
+    else:
+        key = "fabrica2_send"
+
     # print(" [x] Enviando parte pra fabrica")
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
+    channel.queue_declare(queue=key)
 
-    channel.queue_declare(queue='fabrica_send')
+    # print(f"Enviando parte para fabrica {fabrica} e linha {linha}")
 
-    message = {"parte": q.dequeue(), "fabrica": fabrica, "linha": linha}
+    message = {"parte": q.dequeue(), "linha": linha}
 
-    channel.basic_publish(exchange='', routing_key='fabrica_send', body=json.dumps(message))
+    channel.basic_publish(exchange='', routing_key=key, body=json.dumps(message))
+
+    print(f"[x] Parte enviada para fabrica {fabrica} linha {linha} com {q.size()}/{green}")
+
     connection.close()
 
 def requestPart():
     #print(" [x] Pedindo parte ao fornecedor")
-    connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host='rabbitmq'))
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
     channel.queue_declare(queue='fornecedor_request')
@@ -69,10 +79,13 @@ def requestPart():
     connection.close()
 
 def main():
-    print(" [x] Começando almoxarifado")
+    print(" [x] Almoxarifado carregando")
 
-    threading.Thread(target=handleReceivingParts).start()
-    requestPart()
+    for i in range(100):
+        requestPart()
+        print(f"{i}/{100}")
+
+    print(" [x] Almoxarifado iniciou")
 
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
@@ -82,11 +95,6 @@ def main():
     def callback(ch, method, properties, body):
         content = json.loads(body)
 
-        # print(f" [x] Recebido pedido da fabrica {content["fabrica"]} e linha {content["linha"]}")
-        
-        if(q.size() < red):
-            requestPart()
-
         sendPart(content["fabrica"], content["linha"])
 
     channel.basic_consume(queue='fabrica_request', on_message_callback=callback, auto_ack=True)
@@ -95,6 +103,7 @@ def main():
 
 if __name__ == '__main__':
     try:
+        threading.Thread(target=handleReceivingParts).start()
         main()
     except KeyboardInterrupt:
         print('Almoxarifado interrupted')

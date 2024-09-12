@@ -23,9 +23,9 @@ class Queue:
     def size(self):
         return len(self.items)
 
-linhasQueue = []
-for i in range(8):
-    linhasQueue.append(Queue())
+linhasQueue = [Queue(), Queue(), Queue(), Queue(), Queue(), Queue(), Queue(), Queue()]
+
+produtosAFazer = [0, 0, 0, 0, 0]
 
 quantidadePartes = [43+20, 43+33, 43+31, 43+29, 43+24]
 
@@ -34,15 +34,14 @@ def handleReceivingParts():
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
-    channel.queue_declare(queue='fabrica_send')
+    channel.queue_declare(queue='fabrica2_send')
 
     def callback(ch, method, properties, body):
         content = json.loads(body)
-        if(content["fabrica"] == 2):
-            # print(f" [x] Recebida parte {linhasQueue[content["linha"]-1].size()} da linha  {content["linha"]}")
-            linhasQueue[content["linha"]-1].enqueue(content["parte"])
+        # print(f" [x] Recebida parte { linhasQueue[content['linha']-1].size()} da linha  {content['linha']}" )
+        linhasQueue[content['linha']-1].enqueue(content['parte'])
 
-    channel.basic_consume(queue='fabrica_send', on_message_callback=callback, auto_ack=True)
+    channel.basic_consume(queue='fabrica2_send', on_message_callback=callback, auto_ack=True)
 
     channel.start_consuming()
 
@@ -66,45 +65,47 @@ def depositar(produto, tipo):
 
     message = {"produto": produto, "tipo": tipo}
 
+    # print(f"Enviando produto {produto} de tipo de produto {tipo}")
+
     channel.basic_publish(exchange='', routing_key='depositar', body=json.dumps(message))
     connection.close()
 
 def linhaDeProducao(linha):
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-    channel = connection.channel()
+    curProduct = 1
+    pedido = False
+    while True:
+        if produtosAFazer[curProduct-1] > 0:
+            # print(quantidadePartes)
 
-    channel.queue_declare(queue='fabrica2_produz')
+            if not pedido:
+                # Pede partes que precisa
+                for i in range(quantidadePartes[curProduct-1]):
+                    # print(f"Pedindo parte para linha {linha}")
+                    requestPart(2, linha)
+            pedido = True
 
-    # Fabrica item de acordo com o que a main pedir
-    def callback(ch, method, properties, body):
-        content = json.loads(body)
-        if content["linha"] == linha:
-            # Se faltam partes, pedimos para o almoxarifado
-            if(linhasQueue[linha-1].size() < quantidadePartes[content["produto"]]):
-                requestPart(2, linha)
-            # Senão só produzimos
+            # Espero ter peças
+            if(linhasQueue[linha-1].size() >= quantidadePartes[curProduct-1]):
+                produtosAFazer[curProduct-1] -= 1
+                pedido = False
+                # Daí produzimos um produto unico
+                for i in range(quantidadePartes[curProduct-1]):
+                    linhasQueue[linha-1].dequeue()
+
+                depositar(str(uuid.uuid4()), curProduct)
+        else:
+            if curProduct >= 5:
+                curProduct = 1
             else:
-                depositar(str(uuid.uuid4()), content["produto"])
-
-    channel.basic_consume(queue='fabrica2_produz', on_message_callback=callback, auto_ack=True)
-
-    channel.start_consuming()
-
-def pedirProducao(linha, produto):
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-    channel = connection.channel()
-
-    channel.queue_declare(queue='fabrica2_produz')
-
-    message = {"produto": produto, "linha": linha}
-
-    channel.basic_publish(exchange='', routing_key='fabrica2_produz', body=json.dumps(message))
-    connection.close()
+                curProduct += 1
 
 def main():
     print(" [x] Começando fabrica 2")
 
-    threading.Thread(target=handleReceivingParts).start()
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    channel.queue_declare(queue='pedido_fabrica2')
 
     # Iniciando fabricas
     threading.Thread(target=linhaDeProducao, args=[1]).start()
@@ -116,35 +117,20 @@ def main():
     threading.Thread(target=linhaDeProducao, args=[7]).start()
     threading.Thread(target=linhaDeProducao, args=[8]).start()
 
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-    channel = connection.channel()
-
-    channel.queue_declare(queue='new_day')
-
     def callback(ch, method, properties, body):
-        content = json.loads(body)
+        global produtosAFazer
 
-        linha = 1
+        produtosAFazer = json.loads(body)
 
-        print("New day!")
-        for i in range(5):
-            stillNeed = content[i]
+        print(" [X] Começando dia na fabrica 2")
 
-            while stillNeed > 0:
-                pedirProducao(linha, i)
-
-                if linha == 8:
-                    linha = 1
-                else:
-                    linha += 1
-
-    channel.basic_consume(queue='new_day', on_message_callback=callback, auto_ack=True)
-
+    channel.basic_consume(queue='pedido_fabrica2', on_message_callback=callback, auto_ack=True)
+    print(" [X] Fabrica 2 aguardando")
     channel.start_consuming()
-
 
 if __name__ == '__main__':
     try:
+        threading.Thread(target=handleReceivingParts).start()
         main()
     except KeyboardInterrupt:
         print('Fabrica 2 interrupted')

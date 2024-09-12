@@ -74,8 +74,8 @@ services:
     volumes:
       - ./deposito:/app
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+      - fabrica1
+      - fabrica2
     networks:
       - rabbitsd
 
