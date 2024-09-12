@@ -65,6 +65,19 @@ services:
         condition: service_healthy
     networks:
       - rabbitsd
+  
+  deposito:
+    build:
+      context: ./deposito
+      dockerfile: dockerfile
+    restart: always
+    volumes:
+      - ./deposito:/app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - rabbitsd
 
 networks:
   rabbitsd:

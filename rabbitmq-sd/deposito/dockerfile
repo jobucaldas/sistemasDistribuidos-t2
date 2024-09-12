@@ -3,6 +3,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=UTF-8 
 WORKDIR /app
 
-RUN pip install pika uuid
+RUN pip install pika
 
 CMD ["python", "main.py"]

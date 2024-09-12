@@ -5,7 +5,7 @@ import threading
 import uuid
 
 def sendPart():
-    print(" [x] Enviando parte")
+    # print(" [x] Enviando parte")
     connection = pika.BlockingConnection(
     pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
@@ -15,7 +15,7 @@ def sendPart():
     message = str(uuid.uuid4())
 
     channel.basic_publish(exchange='', routing_key='envio_parte_fornecedor', body=message)
-    print(" [x] Parte " + message + " enviada")
+    # print(" [x] Parte " + message + " enviada")
     connection.close()
 
 def main():
@@ -26,7 +26,7 @@ def main():
     channel.queue_declare(queue='fornecedor_request')
 
     def callback(ch, method, properties, body):
-        print(f" [x] Recebido pedido")
+        # print(f" [x] Recebido pedido")
         sendPart()
 
     channel.basic_consume(queue='fornecedor_request', on_message_callback=callback, auto_ack=True)

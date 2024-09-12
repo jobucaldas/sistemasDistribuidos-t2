@@ -1,78 +1,127 @@
 #!/usr/bin/env python
+import json
+from time import sleep
+import uuid
 import pika
 import threading
-import time
+import sys
+from random import randrange
 
-def produce():
-    def on_open(connection):
-        connection.channel(on_open_callback=on_channel_open)
+class Queue:
+    def __init__(self):
+        self.items = []
 
-    def on_channel_open(channel):
-        print(" [*] Waiting for messages. To exit press CTRL+C")
-        def publish_message():
-            message = "fabrica1"
-            channel.basic_publish(
-                exchange='',
-                routing_key='task_queue',
-                body=message,
-                properties=pika.BasicProperties(
-                    delivery_mode=pika.DeliveryMode.Persistent
-                ))
-            print(f" [x] Sent {message}")
-            connection.ioloop.call_later(5, publish_message)
-        
-        publish_message()
+    def isEmpty(self):
+        return self.items == []
 
-    parameters = pika.ConnectionParameters(host='rabbitmq')
-    connection = pika.SelectConnection(parameters, on_open_callback=on_open)
-    connection.ioloop.start()
+    def enqueue(self, item):
+        self.items.insert(0,item)
 
-def start_producer():
-    threading.Thread(target=produce).start()
+    def dequeue(self):
+        return self.items.pop()
 
-channel_consume = None
+    def size(self):
+        return len(self.items)
 
-def consume():
+linhasQueue = [Queue(), Queue(), Queue(), Queue(), Queue()] 
+itensProduzidos = [0, 0, 0, 0, 0]
+
+tamanhoProducao = 48
+produto1 = 43+20
+produto2 = 43+33
+produto3 = 43+31
+produto4 = 43+29
+produto5 = 43+24
+
+def handleReceivingParts():
+    # print(" [x] Recebendo parte do almoxarifado")
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    channel.queue_declare(queue='fabrica_send')
+
     def callback(ch, method, properties, body):
-        print(f" [x] Received {body}")
+        content = json.loads(body)
+        if(content["fabrica"] == 1):
+            # print(f" [x] Recebida parte {linhasQueue[content["linha"]-1].size()} da linha  {content["linha"]}")
+            linhasQueue[content["linha"]-1].enqueue(content["parte"])
 
-    def on_open(connection):
-        print("creating channel")
-        connection.channel(on_open_callback=on_channel_open)
+    channel.basic_consume(queue='fabrica_send', on_message_callback=callback, auto_ack=True)
 
-    def on_channel_open(channel):
-        global channel_consume
-        channel_consume = channel
+    channel.start_consuming()
 
-        print("declaring queue")
-        channel_consume.queue_declare(queue='task_queue', durable=True, callback=on_queue_declared)
-    
-    def on_queue_declared(frame):
-        print("starting consuming")
-        channel_consume.basic_consume(queue='task_queue', on_message_callback=callback, auto_ack=True)
-        print(" [*] Waiting for messages. To exit press CTRL+C")
+def handleNewDay():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
 
-    def on_close(connection, exception):
-        connection.ioloop.stop()
+    channel.queue_declare(queue='new_day')
 
-    print("starting connection")
+    def callback(ch, method, properties, body):
+        # Reset all
+        for i in range(5):
+            linhasQueue[i] = Queue()
+            itensProduzidos[i] = 0
 
-    parameters = pika.ConnectionParameters(host='rabbitmq')
-    connection = pika.SelectConnection(parameters, on_open_callback=on_open, on_close_callback=on_close)
-    
-    print(" [*] Waiting for messages. To exit press CTRL+C")
+    channel.basic_consume(queue='new_day', on_message_callback=callback, auto_ack=True)
 
+    channel.start_consuming()
+
+def requestPart(fabrica, linha):
+    # print(" [x] Pedindo parte ao almoxarifado")
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    channel.queue_declare(queue='fabrica_request')
+
+    message = {"fabrica": fabrica, "linha": linha}
+
+    channel.basic_publish(exchange='', routing_key='fabrica_request', body=json.dumps(message))
+    connection.close()
+
+def depositar(produto, tipo):
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    channel.queue_declare(queue='depositar')
+
+    message = {"produto": produto, "tipo": tipo}
+
+    channel.basic_publish(exchange='', routing_key='depositar', body=json.dumps(message))
+    connection.close()
+
+def linhaDeProducao(quantidadePartes, linha):
+    while True:
+        if(itensProduzidos[linha-1] < tamanhoProducao):
+            # Se faltam partes, pedimos para o almoxarifado
+            if(linhasQueue[linha-1].size() < quantidadePartes):
+                requestPart(1, linha)
+            # Senão só produzimos
+            else:
+                itensProduzidos[linha-1] += 1
+                depositar(str(uuid.uuid4()), linha)
+                #print(f" [X] Fabricado item {itensProduzidos}/{tamanhoProducao}")
+
+                if(itensProduzidos[linha-1] >= tamanhoProducao):
+                    print(f" [X] Linha {linha} concluida!")
+
+def main():
+    print(" [x] Começando fabrica 1")
+
+    threading.Thread(target=handleReceivingParts).start()
+    threading.Thread(target=handleNewDay).start()
+
+    threading.Thread(target=linhaDeProducao, args=[produto1, 1]).start()
+    threading.Thread(target=linhaDeProducao, args=[produto2, 2]).start()
+    threading.Thread(target=linhaDeProducao, args=[produto3, 3]).start()
+    threading.Thread(target=linhaDeProducao, args=[produto4, 4]).start()
+    threading.Thread(target=linhaDeProducao, args=[produto5, 5]).start()
+
+if __name__ == '__main__':
     try:
-        connection.ioloop.start()
+        main()
     except KeyboardInterrupt:
-        connection.close()
-        connection.ioloop.start()
-
-def start_consumer():
-    threading.Thread(target=consume).start()
-
-# Start producer thread
-# start_producer()
-
-# Start consumer in the main thread
-consume()
+        print('Fabrica 1 interrupted')
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
